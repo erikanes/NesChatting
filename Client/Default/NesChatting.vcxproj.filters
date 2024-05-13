@@ -33,5 +33,8 @@
     <ClInclude Include="..\Public\Defines.h">
       <Filter>Header</Filter>
     </ClInclude>
+    <ClInclude Include="..\Public\Struct.h">
+      <Filter>Header</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

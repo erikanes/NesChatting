@@ -1,44 +1,11 @@
 #pragma once
 #pragma comment(lib, "ws2_32")
 
-#include <WinSock2.h>
-#include <WS2tcpip.h>
+#include "../Public/typedef.h"
+#include "../Public/Defines.h"
 
 #include <thread>
 #include <vector>
-#include "../Public/typedef.h"
-
-#define MAX_SOCKBUF			1024	// 패킷의 크기
-#define MAX_WORKERTHREAD	8		// 스레드 풀에 넣을 스레드의 수
-
-enum class IOOPERATION
-{
-	RECV,
-	SEND
-};
-
-struct OverlappedEx // WSAOVERLAPPED 구조체를 확장시켜 필요한 정보를 더 담음
-{
-	WSAOVERLAPPED	m_wsaOverlapped;		// Overlapped I/O 구조체
-	SOCKET			m_socketClient;			// 클라이언트 소켓
-	WSABUF			m_wsaBuf;				// Overlapped I/O 작업 버퍼
-	_char			m_szBuf[MAX_SOCKBUF];	// 데이터 버퍼
-	IOOPERATION		m_eOperation;			// 작업 동작 종류 (수신, 송신)
-};
-
-struct ClientInfo
-{
-	ClientInfo()
-	{
-		ZeroMemory(&m_stRecvOverlappedEx, sizeof(OverlappedEx));
-		ZeroMemory(&m_stSendOverlappedEx, sizeof(OverlappedEx));
-		m_socketClient = INVALID_SOCKET;
-	}
-
-	SOCKET			m_socketClient;			// 클라이언트와 연결되는 소켓
-	OverlappedEx	m_stRecvOverlappedEx;	// Recv Overlapped I/O 작업을 위한 구조체
-	OverlappedEx	m_stSendOverlappedEx;	// Send Overlapped I/O 작업을 위한 구조체
-};
 
 class IOCompletionPort
 {

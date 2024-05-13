@@ -159,7 +159,7 @@ _bool IOCompletionPort::_BindRecv(ClientInfo* pClientInfo)
 	DWORD dwRecvNumBytes = 0;
 
 	pClientInfo->m_stRecvOverlappedEx.m_wsaBuf.len = MAX_SOCKBUF;
-	pClientInfo->m_stRecvOverlappedEx.m_wsaBuf.buf = pClientInfo->m_stRecvOverlappedEx.m_szBuf;
+	pClientInfo->m_stRecvOverlappedEx.m_wsaBuf.buf = pClientInfo->m_recvBuf;
 	pClientInfo->m_stRecvOverlappedEx.m_eOperation = IOOPERATION::RECV;
 
 	_int iRet = WSARecv(
@@ -184,10 +184,10 @@ _bool IOCompletionPort::_SendMsg(ClientInfo* pClientInfo, _char* pMsg, _int iLen
 {
 	DWORD dwRecvNumBytes = 0;
 
-	CopyMemory(pClientInfo->m_stSendOverlappedEx.m_szBuf, pMsg, iLen);
+	CopyMemory(pClientInfo->m_sendBuf, pMsg, iLen);
 
 	pClientInfo->m_stSendOverlappedEx.m_wsaBuf.len = iLen;
-	pClientInfo->m_stSendOverlappedEx.m_wsaBuf.buf = pClientInfo->m_stSendOverlappedEx.m_szBuf;
+	pClientInfo->m_stSendOverlappedEx.m_wsaBuf.buf = pClientInfo->m_sendBuf;
 	pClientInfo->m_stSendOverlappedEx.m_eOperation = IOOPERATION::SEND;
 
 	_int iRet = WSASend(
@@ -251,9 +251,9 @@ void IOCompletionPort::_WorkerThread()
 
 		if (IOOPERATION::RECV == eOperation)
 		{
-			auto& szBuf = pOverlappedEx->m_szBuf;
+			auto& szBuf = pClientInfo->m_recvBuf;
 
-			szBuf[dwIoSize] = NULL;
+			szBuf[dwIoSize] = '\0';
 			std::cout << "[Recv] bytes : " << dwIoSize << ", msg : " << szBuf << '\n';
 
 			// 클라이언트에게 메시지를 에코한다
@@ -263,7 +263,7 @@ void IOCompletionPort::_WorkerThread()
 
 		else if (IOOPERATION::SEND == eOperation)
 		{
-			auto& szBuf = pOverlappedEx->m_szBuf;
+			auto& szBuf = pClientInfo->m_sendBuf;
 
 			std::cout << "[Send] bytes : " << dwIoSize << ", msg : " << szBuf << '\n';
 		}

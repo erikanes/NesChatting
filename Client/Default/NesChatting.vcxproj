@@ -25,6 +25,7 @@
   <ItemGroup>
     <ClInclude Include="..\Public\Defines.h" />
     <ClInclude Include="..\Public\IOCompletionPort.h" />
+    <ClInclude Include="..\Public\Struct.h" />
     <ClInclude Include="..\Public\typedef.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
