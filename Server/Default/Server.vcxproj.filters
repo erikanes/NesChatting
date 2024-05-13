@@ -15,9 +15,4 @@
       <UniqueIdentifier>{8a573f6a-2a41-4169-aa0c-f0abb8eb56e4}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="main.cpp">
-      <Filter>Default</Filter>
-    </ClCompile>
-  </ItemGroup>
 </Project>
