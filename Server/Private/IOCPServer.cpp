@@ -84,9 +84,33 @@ _bool IOCPServer::StartServer(const UINT32 iMaxClientCount)
 	if (false == bRet)
 		return false;
 
-	std::cout << "서버 시작." << '\n';
+	std::cout << "Server start" << '\n';
 
 	return true;
+}
+
+_bool IOCPServer::Run(const UINT32 uiMaxClientCount)
+{
+	return StartServer(uiMaxClientCount);
+}
+
+void IOCPServer::End()
+{
+	DestroyThread();
+}
+
+_bool IOCPServer::SendMsg(const UINT32 uiSessionIndex, const UINT32 uiDataSize, _char* pData)
+{
+	auto pClient = _GetClientInfo(uiSessionIndex);
+	if (nullptr == pClient)
+		return false;
+
+	return pClient->SendMsg(uiDataSize, pData);
+}
+
+_bool IOCPServer::SendMsg(PacketData& packetData)
+{
+	return SendMsg(packetData.m_uiSessionIndex, packetData.m_uiDataSize, packetData.m_pData);
 }
 
 void IOCPServer::DestroyThread()
@@ -109,7 +133,7 @@ void IOCPServer::_CreateClient(const UINT32 iMaxClientCount)
 	for (UINT32 i = 0; i < iMaxClientCount; ++i)
 	{
 		m_clientInfos.emplace_back();
-		m_clientInfos[i].m_iIndex = i;
+		m_clientInfos[i].Init(i);
 	}
 }
 
@@ -140,81 +164,19 @@ ClientInfo* IOCPServer::_GetEmptyClientInfo()
 {
 	for (auto& client : m_clientInfos)
 	{
-		if (INVALID_SOCKET == client.m_socketClient) // 유효하지 않은 소켓 == 비어있는 소켓
+		if (false == client.IsConnected())
 			return &client;
 	}
 
 	return nullptr;
 }
 
-_bool IOCPServer::_BindIOCP(ClientInfo* pClientInfo)
+ClientInfo* IOCPServer::_GetClientInfo(const UINT32 uiSessionIndex)
 {
-	auto hIOCP = CreateIoCompletionPort((HANDLE)pClientInfo->m_socketClient, m_IOCPHandle, (ULONG_PTR)(pClientInfo), 0);
+	if (uiSessionIndex >= m_clientInfos.size())
+		return nullptr;
 
-	if (NULL == hIOCP || m_IOCPHandle != hIOCP)
-	{
-		std::cout << "[Error] Failed to CreateIoCompletionPort() : " << GetLastError() << '\n';
-		return false;
-	}
-
-	return true;
-}
-
-_bool IOCPServer::_BindRecv(ClientInfo* pClientInfo)
-{
-	DWORD dwFlag = 0;
-	DWORD dwRecvNumBytes = 0;
-
-	pClientInfo->m_stRecvOverlappedEx.m_wsaBuf.len = MAX_SOCKBUF;
-	pClientInfo->m_stRecvOverlappedEx.m_wsaBuf.buf = pClientInfo->m_recvBuf;
-	pClientInfo->m_stRecvOverlappedEx.m_eOperation = IOOPERATION::RECV;
-
-	_int iRet = WSARecv(
-		pClientInfo->m_socketClient,
-		&(pClientInfo->m_stRecvOverlappedEx.m_wsaBuf),
-		1,
-		&dwRecvNumBytes,
-		&dwFlag,
-		(LPWSAOVERLAPPED) & (pClientInfo->m_stRecvOverlappedEx),
-		NULL);
-
-	if (SOCKET_ERROR == iRet && (ERROR_IO_PENDING != WSAGetLastError()))
-	{
-		std::cout << "[Error] Failed to WSARecv() : " << WSAGetLastError() << '\n';
-		return false;
-	}
-
-	return true;
-}
-
-_bool IOCPServer::_SendMsg(ClientInfo* pClientInfo, _char* pMsg, _int iLen)
-{
-	DWORD dwRecvNumBytes = 0;
-
-	CopyMemory(pClientInfo->m_sendBuf, pMsg, iLen);
-	pClientInfo->m_sendBuf[iLen] = '\0';
-
-	pClientInfo->m_stSendOverlappedEx.m_wsaBuf.len = iLen;
-	pClientInfo->m_stSendOverlappedEx.m_wsaBuf.buf = pClientInfo->m_sendBuf;
-	pClientInfo->m_stSendOverlappedEx.m_eOperation = IOOPERATION::SEND;
-
-	_int iRet = WSASend(
-		pClientInfo->m_socketClient,
-		&(pClientInfo->m_stSendOverlappedEx.m_wsaBuf),
-		1,
-		&dwRecvNumBytes,
-		0,
-		(LPWSAOVERLAPPED) & (pClientInfo->m_stSendOverlappedEx),
-		NULL);
-
-	// SOCKET_ERROR 반환 시 연결이 끊어진 것으로 처리
-	if (SOCKET_ERROR == iRet && (ERROR_IO_PENDING != WSAGetLastError()))
-	{
-		std::cout << "[Error] Failed to WSASend() : " << WSAGetLastError() << '\n';
-		return false;
-	}
-
-	return true;
+	return &m_clientInfos[uiSessionIndex];
 }
 
 void IOCPServer::_WorkerThread()
@@ -235,7 +197,8 @@ void IOCPServer::_WorkerThread()
 			&dwIoSize,					// 실제로 전송된 바이트
 			(PULONG_PTR)&pClientInfo,	// Completion Key
 			&lpOverlapped,				// Overlapped I/O 객체
-			INFINITE);					// 대기할 시간
+			INFINITE					// 대기할 시간
+		);
 
 		// 사용자 스레드 종료 메시지 처리
 		if (true == bSuccess && 0 == dwIoSize && NULL == lpOverlapped)
@@ -250,38 +213,33 @@ void IOCPServer::_WorkerThread()
 		// 클라이언트가 접속을 끊었을 때
 		if (false == bSuccess || (0 == dwIoSize && true == bSuccess))
 		{
-			std::cout << "Disconnect socket(" << (_int)pClientInfo->m_socketClient << ")" << '\n';
+			//std::cout << "Disconnect socket(" << (_int)pClientInfo->m_socketClient << ")" << '\n';
 			_CloseSocket(pClientInfo);
 			continue;
 		}
 
-		OverlappedEx* pOverlappedEx = (OverlappedEx*)lpOverlapped;
+		auto pOverlappedEx = (OverlappedEx*)lpOverlapped;
 		const auto eOperation = pOverlappedEx->m_eOperation;
 
 		if (IOOPERATION::RECV == eOperation)
 		{
-			auto& szBuf = pClientInfo->m_recvBuf;
-			auto& iIndex = pClientInfo->m_iIndex;
+			auto iIndex = pClientInfo->GetIndex();
+			auto szBuf = pClientInfo->GetRecvBuffer();
 
 			OnReceive(iIndex, dwIoSize, szBuf);
-
-			//szBuf[dwIoSize] = '\0';
-			//std::cout << "[Recv] bytes : " << dwIoSize << ", msg : " << szBuf << '\n';
-
-			// 클라이언트에게 메시지를 에코한다
-			_SendMsg(pClientInfo, szBuf, dwIoSize);
-			_BindRecv(pClientInfo);
+			pClientInfo->BindRecv();
 		}
 
 		else if (IOOPERATION::SEND == eOperation)
 		{
-			auto& szBuf = pClientInfo->m_sendBuf;
+			delete[] pOverlappedEx->m_wsaBuf.buf;
+			delete pOverlappedEx;
 
-			std::cout << "[Send] bytes : " << dwIoSize << ", msg : " << szBuf << '\n';
+			pClientInfo->SendCompleted(dwIoSize);
 		}
 
 		else // 예외상황
-			std::cout << "[Exception] socket(" << (_int)pClientInfo->m_socketClient << ")" << '\n';
+			std::cout << "[Exception] socket(" << pClientInfo->GetIndex() << ")" << '\n';
 	}
 }
 
@@ -307,25 +265,17 @@ void IOCPServer::_AcceptThread()
 		}
 
 		// 클라이언트 접속 요청이 들어올 때까지 대기
-		pClientInfo->m_socketClient = accept(m_socketListen, (SOCKADDR*)&stClientAddr, &iAddrLen);
-		if (INVALID_SOCKET == pClientInfo->m_socketClient)
+		auto newSocket = accept(m_socketListen, (SOCKADDR*)&stClientAddr, &iAddrLen);
+		if (INVALID_SOCKET == newSocket)
 			continue;
 
-		// IOCP 객체와 소켓을 연결시킨다
-		_bool bRet = _BindIOCP(pClientInfo);
-		if (false == bRet)
+		if (false == pClientInfo->OnConnect(m_IOCPHandle, newSocket))
+		{
+			pClientInfo->Close(true);
 			return;
+		}
 
-		// Recv overlapped I/O 작업을 요청해 놓음
-		bRet = _BindRecv(pClientInfo);
-		if (false == bRet)
-			return;
-
-		OnConnect(pClientInfo->m_iIndex);
-
-		//_char szClientIP[32] = { 0, };
-		//inet_ntop(AF_INET, &(stClientAddr.sin_addr), szClientIP, 32 - 1);
-		//std::cout << "[Connect] IP : (" << szClientIP << ") socket(" << (_int)pClientInfo->m_socketClient << ")" << '\n';
+		OnConnect(pClientInfo->GetIndex());
 
 		++m_iClientCount;
 	}
@@ -333,24 +283,8 @@ void IOCPServer::_AcceptThread()
 
 void IOCPServer::_CloseSocket(ClientInfo* pClientInfo, _bool bIsForce)
 {
-	auto iClientIndex = pClientInfo->m_iIndex;
-	struct linger stLinger = { 0, 0 }; // SO_DONTLINGER로 설정
-
-	// 강제종료 시 timeout을 0으로 설정하여 강제 종료 시킨다.
-	// 주의 : 데이터 손실이 발생할 수 있음
-	if (true == bIsForce)
-		stLinger.l_onoff = 1;
-
-	// 해당 소켓의 데이터 송수신을 모두 중단시킨다
-	shutdown(pClientInfo->m_socketClient, SD_BOTH);
-
-	// 소켓 옵션 설정
-	setsockopt(pClientInfo->m_socketClient, SOL_SOCKET, SO_LINGER, (_char*)&stLinger, sizeof(stLinger));
-
-	// 소켓 연결 종료
-	closesocket(pClientInfo->m_socketClient);
-
-	pClientInfo->m_socketClient = INVALID_SOCKET;
+	auto iClientIndex = pClientInfo->GetIndex();
+	pClientInfo->Close(bIsForce);
 
 	OnClose(iClientIndex);
 }

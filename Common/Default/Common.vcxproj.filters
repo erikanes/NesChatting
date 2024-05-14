@@ -7,6 +7,12 @@
     <Filter Include="Headers">
       <UniqueIdentifier>{55481444-4286-4e32-b113-553c792056da}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ClientInfo">
+      <UniqueIdentifier>{289fee58-42dd-4a4e-9d90-ebbc31ea521f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Packet">
+      <UniqueIdentifier>{d1861d31-a4a6-4e2b-a800-a4d131b2aa9a}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Public\Common_Define.h">
@@ -18,5 +24,16 @@
     <ClInclude Include="..\Public\Common_Debug.h">
       <Filter>Headers</Filter>
     </ClInclude>
+    <ClInclude Include="..\Public\ClientInfo.h">
+      <Filter>ClientInfo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\Packet.h">
+      <Filter>Packet</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\Public\ClientInfo.cpp">
+      <Filter>ClientInfo</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>

@@ -1,5 +1,5 @@
 #include <iostream>
-#include "../Public/IOCompletionPort.h"
+#include "IOCompletionPort.h"
 
 const UINT16	SERVER_PORT	= 11021;	// 서버 포트
 const UINT16	MAX_CLIENT	= 100;		// 접속 가능한 클라이언트의 수

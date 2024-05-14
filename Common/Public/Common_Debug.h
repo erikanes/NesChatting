@@ -1,5 +1,6 @@
 #pragma once
 
+// -------------------------------------------
 #ifdef _DEBUG
 #include <crtdbg.h>
 #define _CRTDBG_MAP_ALLOC
@@ -11,9 +12,9 @@
 
 #define _CRTSETDBGFLAG_ _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 
+// -------------------------------------------
 #else
 
 #define CRTSETDBGFLAG
 
 #endif
-

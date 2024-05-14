@@ -143,9 +143,14 @@ call "$(ProjectDir)..\..\Bat\update_common_lib.bat"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="..\Public\ClientInfo.h" />
     <ClInclude Include="..\Public\Common_Debug.h" />
     <ClInclude Include="..\Public\Common_Define.h" />
     <ClInclude Include="..\Public\Common_Typedef.h" />
+    <ClInclude Include="..\Public\Packet.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\Public\ClientInfo.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

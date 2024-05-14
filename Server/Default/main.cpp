@@ -19,7 +19,7 @@ int main()
 	if (false == server.BindAndListen(SERVER_PORT))
 		return 0;
 
-	if (false == server.StartServer(MAX_CLIENT))
+	if (false == server.Run(MAX_CLIENT))
 		return 0;
 
 	std::cout << "Press any key...";
@@ -33,20 +33,7 @@ int main()
 			break;
 	}
 
-	server.DestroyThread();
-
-	return 0;
-
-	//IOCPServer iocp;
-
-	//iocp.InitSocket();
-	//iocp.BindAndListen(SERVER_PORT);
-	//iocp.StartServer(MAX_CLIENT);
-
-	//std::cout << "Wait for press any key..." << '\n';
-	//getchar();
-
-	//iocp.DestroyThread();
+	server.End();
 
 	return 0;
 }
