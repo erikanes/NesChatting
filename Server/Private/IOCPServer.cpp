@@ -1,14 +1,15 @@
-#include "../Public/IOCompletionPort.h"
+#include "IOCPServer.h"
 #include <iostream>
 
-IOCompletionPort::~IOCompletionPort()
+IOCPServer::~IOCPServer()
 {
 	WSACleanup(); // 윈속 사용 종료
 }
 
-_bool IOCompletionPort::InitSocket()
+_bool IOCPServer::InitSocket()
 {
 	WSADATA wsaData;
+
 	_int iRet = WSAStartup(MAKEWORD(2, 2), &wsaData);
 	if (0 != iRet)
 	{
@@ -30,7 +31,7 @@ _bool IOCompletionPort::InitSocket()
 	return true;
 }
 
-_bool IOCompletionPort::BindAndListen(_int iBindPort)
+_bool IOCPServer::BindAndListen(_int iBindPort)
 {
 	SOCKADDR_IN stServerAddr;
 	stServerAddr.sin_family = AF_INET;
@@ -64,7 +65,7 @@ _bool IOCompletionPort::BindAndListen(_int iBindPort)
 	return true;
 }
 
-_bool IOCompletionPort::StartServer(const UINT32 iMaxClientCount)
+_bool IOCPServer::StartServer(const UINT32 iMaxClientCount)
 {
 	_CreateClient(iMaxClientCount);
 
@@ -88,7 +89,7 @@ _bool IOCompletionPort::StartServer(const UINT32 iMaxClientCount)
 	return true;
 }
 
-void IOCompletionPort::DestroyThread()
+void IOCPServer::DestroyThread()
 {
 	m_bIsWorkerRun = false;
 	CloseHandle(m_IOCPHandle);
@@ -103,13 +104,16 @@ void IOCompletionPort::DestroyThread()
 		m_acceptThread.join();
 }
 
-void IOCompletionPort::_CreateClient(const UINT32 iMaxClientCount)
+void IOCPServer::_CreateClient(const UINT32 iMaxClientCount)
 {
 	for (UINT32 i = 0; i < iMaxClientCount; ++i)
+	{
 		m_clientInfos.emplace_back();
+		m_clientInfos[i].m_iIndex = i;
+	}
 }
 
-_bool IOCompletionPort::_CreateWorkerThread()
+_bool IOCPServer::_CreateWorkerThread()
 {
 	_uint uiThreadId = 0;
 
@@ -123,7 +127,7 @@ _bool IOCompletionPort::_CreateWorkerThread()
 	return true;
 }
 
-_bool IOCompletionPort::_CreateAccepterThread()
+_bool IOCPServer::_CreateAccepterThread()
 {
 	m_acceptThread = std::thread([this]() { _AcceptThread(); });
 
@@ -132,7 +136,7 @@ _bool IOCompletionPort::_CreateAccepterThread()
 	return true;
 }
 
-ClientInfo* IOCompletionPort::_GetEmptyClientInfo()
+ClientInfo* IOCPServer::_GetEmptyClientInfo()
 {
 	for (auto& client : m_clientInfos)
 	{
@@ -143,7 +147,7 @@ ClientInfo* IOCompletionPort::_GetEmptyClientInfo()
 	return nullptr;
 }
 
-_bool IOCompletionPort::_BindIOCP(ClientInfo* pClientInfo)
+_bool IOCPServer::_BindIOCP(ClientInfo* pClientInfo)
 {
 	auto hIOCP = CreateIoCompletionPort((HANDLE)pClientInfo->m_socketClient, m_IOCPHandle, (ULONG_PTR)(pClientInfo), 0);
 
@@ -156,7 +160,7 @@ _bool IOCompletionPort::_BindIOCP(ClientInfo* pClientInfo)
 	return true;
 }
 
-_bool IOCompletionPort::_BindRecv(ClientInfo* pClientInfo)
+_bool IOCPServer::_BindRecv(ClientInfo* pClientInfo)
 {
 	DWORD dwFlag = 0;
 	DWORD dwRecvNumBytes = 0;
@@ -171,7 +175,7 @@ _bool IOCompletionPort::_BindRecv(ClientInfo* pClientInfo)
 		1,
 		&dwRecvNumBytes,
 		&dwFlag,
-		(LPWSAOVERLAPPED)&(pClientInfo->m_stRecvOverlappedEx),
+		(LPWSAOVERLAPPED) & (pClientInfo->m_stRecvOverlappedEx),
 		NULL);
 
 	if (SOCKET_ERROR == iRet && (ERROR_IO_PENDING != WSAGetLastError()))
@@ -183,11 +187,12 @@ _bool IOCompletionPort::_BindRecv(ClientInfo* pClientInfo)
 	return true;
 }
 
-_bool IOCompletionPort::_SendMsg(ClientInfo* pClientInfo, _char* pMsg, _int iLen)
+_bool IOCPServer::_SendMsg(ClientInfo* pClientInfo, _char* pMsg, _int iLen)
 {
 	DWORD dwRecvNumBytes = 0;
 
 	CopyMemory(pClientInfo->m_sendBuf, pMsg, iLen);
+	pClientInfo->m_sendBuf[iLen] = '\0';
 
 	pClientInfo->m_stSendOverlappedEx.m_wsaBuf.len = iLen;
 	pClientInfo->m_stSendOverlappedEx.m_wsaBuf.buf = pClientInfo->m_sendBuf;
@@ -199,24 +204,25 @@ _bool IOCompletionPort::_SendMsg(ClientInfo* pClientInfo, _char* pMsg, _int iLen
 		1,
 		&dwRecvNumBytes,
 		0,
-		(LPWSAOVERLAPPED)&(pClientInfo->m_stSendOverlappedEx),
+		(LPWSAOVERLAPPED) & (pClientInfo->m_stSendOverlappedEx),
 		NULL);
 
+	// SOCKET_ERROR 반환 시 연결이 끊어진 것으로 처리
 	if (SOCKET_ERROR == iRet && (ERROR_IO_PENDING != WSAGetLastError()))
 	{
 		std::cout << "[Error] Failed to WSASend() : " << WSAGetLastError() << '\n';
 		return false;
 	}
 
-	return false;
+	return true;
 }
 
-void IOCompletionPort::_WorkerThread()
+void IOCPServer::_WorkerThread()
 {
-	ClientInfo*		pClientInfo		= nullptr;
-	_bool			bSuccess		= true;
-	DWORD			dwIoSize		= 0;
-	LPOVERLAPPED	lpOverlapped	= NULL;
+	ClientInfo* pClientInfo = nullptr;
+	_bool			bSuccess = true;
+	DWORD			dwIoSize = 0;
+	LPOVERLAPPED	lpOverlapped = NULL;
 
 	while (m_bIsWorkerRun)
 	{
@@ -255,9 +261,12 @@ void IOCompletionPort::_WorkerThread()
 		if (IOOPERATION::RECV == eOperation)
 		{
 			auto& szBuf = pClientInfo->m_recvBuf;
+			auto& iIndex = pClientInfo->m_iIndex;
 
-			szBuf[dwIoSize] = '\0';
-			std::cout << "[Recv] bytes : " << dwIoSize << ", msg : " << szBuf << '\n';
+			OnReceive(iIndex, dwIoSize, szBuf);
+
+			//szBuf[dwIoSize] = '\0';
+			//std::cout << "[Recv] bytes : " << dwIoSize << ", msg : " << szBuf << '\n';
 
 			// 클라이언트에게 메시지를 에코한다
 			_SendMsg(pClientInfo, szBuf, dwIoSize);
@@ -282,7 +291,7 @@ void IOCompletionPort::_WorkerThread()
 // 4. 접속 대기 (accept)
 // 5. iocp 객체와 소켓 연결
 
-void IOCompletionPort::_AcceptThread()
+void IOCPServer::_AcceptThread()
 {
 	SOCKADDR_IN	stClientAddr;
 	_int		iAddrLen = sizeof(SOCKADDR_IN);
@@ -291,7 +300,6 @@ void IOCompletionPort::_AcceptThread()
 	{
 		// 접속을 받을 구조체의 인덱스를 얻어옴
 		ClientInfo* pClientInfo = _GetEmptyClientInfo();
-
 		if (nullptr == pClientInfo)
 		{
 			std::cout << "[Error] Client is full." << '\n';
@@ -313,16 +321,19 @@ void IOCompletionPort::_AcceptThread()
 		if (false == bRet)
 			return;
 
-		_char szClientIP[32] = { 0, };
-		inet_ntop(AF_INET, &(stClientAddr.sin_addr), szClientIP, 32 - 1);
-		std::cout << "[Connect] IP : (" << szClientIP << ") socket(" << (_int)pClientInfo->m_socketClient << ")" << '\n';
+		OnConnect(pClientInfo->m_iIndex);
+
+		//_char szClientIP[32] = { 0, };
+		//inet_ntop(AF_INET, &(stClientAddr.sin_addr), szClientIP, 32 - 1);
+		//std::cout << "[Connect] IP : (" << szClientIP << ") socket(" << (_int)pClientInfo->m_socketClient << ")" << '\n';
 
 		++m_iClientCount;
 	}
 }
 
-void IOCompletionPort::_CloseSocket(ClientInfo* pClientInfo, _bool bIsForce)
+void IOCPServer::_CloseSocket(ClientInfo* pClientInfo, _bool bIsForce)
 {
+	auto iClientIndex = pClientInfo->m_iIndex;
 	struct linger stLinger = { 0, 0 }; // SO_DONTLINGER로 설정
 
 	// 강제종료 시 timeout을 0으로 설정하여 강제 종료 시킨다.
@@ -340,4 +351,6 @@ void IOCompletionPort::_CloseSocket(ClientInfo* pClientInfo, _bool bIsForce)
 	closesocket(pClientInfo->m_socketClient);
 
 	pClientInfo->m_socketClient = INVALID_SOCKET;
+
+	OnClose(iClientIndex);
 }

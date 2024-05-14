@@ -4,10 +4,16 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 VisualStudioVersion = 17.4.33213.308
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Client", "Client\Default\NesChatting.vcxproj", "{441701B4-6200-423F-8BC2-BE5F3CF5C079}"
+	ProjectSection(ProjectDependencies) = postProject
+		{F3B57BE4-5506-4A67-9C18-B7AA81B3DC2B} = {F3B57BE4-5506-4A67-9C18-B7AA81B3DC2B}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Common", "Common\Default\Common.vcxproj", "{F3B57BE4-5506-4A67-9C18-B7AA81B3DC2B}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Server", "Server\Default\Server.vcxproj", "{963F1950-1CCE-4062-B3DC-29F2B659FEC9}"
+	ProjectSection(ProjectDependencies) = postProject
+		{F3B57BE4-5506-4A67-9C18-B7AA81B3DC2B} = {F3B57BE4-5506-4A67-9C18-B7AA81B3DC2B}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
