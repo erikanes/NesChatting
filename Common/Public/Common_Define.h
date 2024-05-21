@@ -5,7 +5,8 @@
 
 #include "Common_Typedef.h"
 
-constexpr UINT32 MAX_SOCKBUF = 256;		// 패킷의 크기
+constexpr UINT32 MAX_SOCKBUF = 256;		// 소켓 버퍼의 크기
+constexpr UINT32 MAX_SOCK_SENDBUF = 4096; // 소켓 버퍼의 크기
 constexpr UINT32 MAX_WORKERTHREAD = 8;	// 스레드 풀에 넣을 스레드의 수
 
 enum class IOOPERATION

@@ -3,6 +3,12 @@
 
 IOCPServer::~IOCPServer()
 {
+	for (auto& pClient : m_clientInfos)
+		delete pClient;
+
+	m_clientInfos.clear();
+	m_clientInfos.shrink_to_fit();
+
 	WSACleanup(); // 윈속 사용 종료
 }
 
@@ -84,6 +90,10 @@ _bool IOCPServer::StartServer(const UINT32 iMaxClientCount)
 	if (false == bRet)
 		return false;
 
+	bRet = _CreateSenderThread();
+	if (false == bRet)
+		return false;
+
 	std::cout << "Server start" << '\n';
 
 	return true;
@@ -115,31 +125,37 @@ _bool IOCPServer::SendMsg(PacketData& packetData)
 
 void IOCPServer::DestroyThread()
 {
+	m_bIsSenderRun = false;
+	if (m_sendThread.joinable())
+		m_sendThread.join();
+
+	m_bIsAccepterRun = false;
+	closesocket(m_socketListen);
+
+	if (m_acceptThread.joinable())
+		m_acceptThread.join();
+
 	m_bIsWorkerRun = false;
 	CloseHandle(m_IOCPHandle);
 
 	for (auto& th : m_IOWorkerThreads)
 		if (th.joinable()) th.join();
-
-	m_bIsAcceptRun = false;
-	closesocket(m_socketListen);
-
-	if (m_acceptThread.joinable())
-		m_acceptThread.join();
 }
 
 void IOCPServer::_CreateClient(const UINT32 iMaxClientCount)
 {
 	for (UINT32 i = 0; i < iMaxClientCount; ++i)
 	{
-		m_clientInfos.emplace_back();
-		m_clientInfos[i].Init(i);
+		auto pClient = new ClientInfo();
+		pClient->Init(i);
+
+		m_clientInfos.push_back(pClient);
 	}
 }
 
 _bool IOCPServer::_CreateWorkerThread()
 {
-	_uint uiThreadId = 0;
+	m_bIsWorkerRun = true;
 
 	// WaitingThreadQueue에 대기 상태로 넣을 스레드의 개수
 	// 권장 개수 : (프로세서 개수 * 2) + 1
@@ -153,9 +169,20 @@ _bool IOCPServer::_CreateWorkerThread()
 
 _bool IOCPServer::_CreateAccepterThread()
 {
+	m_bIsAccepterRun = true;
 	m_acceptThread = std::thread([this]() { _AcceptThread(); });
 
 	std::cout << "Start accepter thread..." << '\n';
+
+	return true;
+}
+
+_bool IOCPServer::_CreateSenderThread()
+{
+	m_bIsSenderRun = true;
+	m_sendThread = std::thread([this]() { _SendThread(); });
+
+	std::cout << "Start sender thread..." << '\n';
 
 	return true;
 }
@@ -164,8 +191,8 @@ ClientInfo* IOCPServer::_GetEmptyClientInfo()
 {
 	for (auto& client : m_clientInfos)
 	{
-		if (false == client.IsConnected())
-			return &client;
+		if (false == client->IsConnected())
+			return client;
 	}
 
 	return nullptr;
@@ -176,7 +203,7 @@ ClientInfo* IOCPServer::_GetClientInfo(const UINT32 uiSessionIndex)
 	if (uiSessionIndex >= m_clientInfos.size())
 		return nullptr;
 
-	return &m_clientInfos[uiSessionIndex];
+	return m_clientInfos[uiSessionIndex];
 }
 
 void IOCPServer::_WorkerThread()
@@ -213,7 +240,6 @@ void IOCPServer::_WorkerThread()
 		// 클라이언트가 접속을 끊었을 때
 		if (false == bSuccess || (0 == dwIoSize && true == bSuccess))
 		{
-			//std::cout << "Disconnect socket(" << (_int)pClientInfo->m_socketClient << ")" << '\n';
 			_CloseSocket(pClientInfo);
 			continue;
 		}
@@ -231,12 +257,7 @@ void IOCPServer::_WorkerThread()
 		}
 
 		else if (IOOPERATION::SEND == eOperation)
-		{
-			delete[] pOverlappedEx->m_wsaBuf.buf;
-			delete pOverlappedEx;
-
 			pClientInfo->SendCompleted(dwIoSize);
-		}
 
 		else // 예외상황
 			std::cout << "[Exception] socket(" << pClientInfo->GetIndex() << ")" << '\n';
@@ -254,7 +275,7 @@ void IOCPServer::_AcceptThread()
 	SOCKADDR_IN	stClientAddr;
 	_int		iAddrLen = sizeof(SOCKADDR_IN);
 
-	while (m_bIsAcceptRun)
+	while (m_bIsAccepterRun)
 	{
 		// 접속을 받을 구조체의 인덱스를 얻어옴
 		ClientInfo* pClientInfo = _GetEmptyClientInfo();
@@ -278,6 +299,22 @@ void IOCPServer::_AcceptThread()
 		OnConnect(pClientInfo->GetIndex());
 
 		++m_iClientCount;
+	}
+}
+
+void IOCPServer::_SendThread()
+{
+	while (m_bIsSenderRun)
+	{
+		for (auto pClient : m_clientInfos)
+		{
+			if (false == pClient->IsConnected())
+				continue;
+
+			pClient->SendIO();
+		}
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(8));
 	}
 }
 

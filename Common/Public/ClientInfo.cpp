@@ -42,6 +42,8 @@ void ClientInfo::Close(_bool bIsForce)
 
 void ClientInfo::Clear()
 {
+	m_uiSendPos = 0;
+	m_bIsSending = false;
 }
 
 _bool ClientInfo::BindIOCP(HANDLE iocpHandle)
@@ -91,22 +93,45 @@ _bool ClientInfo::BindRecv()
 // 1개의 스레드에서만 호출해야 함
 _bool ClientInfo::SendMsg(const UINT32 uiDataSize, _char* pMsg)
 {
-	auto pSendOverlappedEx = new OverlappedEx;
-	ZeroMemory(pSendOverlappedEx, sizeof(OverlappedEx));
+	// SendMsg는 이제 버퍼에 데이터를 복사해 주는 일만 한다
 
-	pSendOverlappedEx->m_wsaBuf.len = uiDataSize;
-	pSendOverlappedEx->m_wsaBuf.buf = new _char[uiDataSize];
-	CopyMemory(pSendOverlappedEx->m_wsaBuf.buf, pMsg, uiDataSize);
-	pSendOverlappedEx->m_eOperation = IOOPERATION::SEND;
+	std::lock_guard<std::mutex> guard(m_sendLock);
+
+	// 읽어야 하는 데이터의 길이가 버퍼 사이즈를 넘긴다면 위치를 초기화 시킴
+	if (MAX_SOCK_SENDBUF < m_uiSendPos + uiDataSize)
+		m_uiSendPos = 0;
+
+	auto pSendBuf = &m_sendBuf[m_uiSendPos];
+
+	// 전송될 메시지 복사
+	CopyMemory(pSendBuf, pMsg, uiDataSize);
+	m_uiSendPos += uiDataSize;
+
+	return true;
+}
+
+_bool ClientInfo::SendIO()
+{
+	if (0 >= m_uiSendPos || m_bIsSending)
+		return true;
+
+	std::lock_guard<std::mutex> guard(m_sendLock);
+	m_bIsSending = true;
+
+	CopyMemory(m_sendingBuf, &m_sendBuf[0], m_uiSendPos);
+
+	m_stSendOverlappedEx.m_wsaBuf.len = (ULONG)m_uiSendPos;
+	m_stSendOverlappedEx.m_wsaBuf.buf = &m_sendingBuf[0];
+	m_stSendOverlappedEx.m_eOperation = IOOPERATION::SEND;
 
 	DWORD dwRecvNumBytes = 0;
 	_int iRet = WSASend(
 		m_socket,
-		&(pSendOverlappedEx->m_wsaBuf),
+		&(m_stSendOverlappedEx.m_wsaBuf),
 		1,
 		&dwRecvNumBytes,
 		0,
-		(LPWSAOVERLAPPED)pSendOverlappedEx,
+		(LPWSAOVERLAPPED)&m_stSendOverlappedEx,
 		NULL);
 
 	// SOCKET_ERROR를 client socket이 끊어진 것으로 처리
@@ -121,5 +146,6 @@ _bool ClientInfo::SendMsg(const UINT32 uiDataSize, _char* pMsg)
 
 void ClientInfo::SendCompleted(const UINT32 uiDataSize)
 {
+	m_bIsSending = false;
 	std::cout << "[Send complete] bytes : " << uiDataSize << '\n';
 }

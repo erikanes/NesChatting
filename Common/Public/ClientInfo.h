@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Common_Define.h"
+#include <mutex>
 
 class ClientInfo
 {
@@ -21,12 +22,22 @@ public:
 	_bool BindIOCP(HANDLE iocpHandle);
 	_bool BindRecv();
 	_bool SendMsg(const UINT32 uiDataSize, _char* pMsg);
+	_bool SendIO(); // send 전용 스레드 함수
 	void SendCompleted(const UINT32 uiDataSize);
 
 private:
-	UINT32 m_iIndex = 0;
-	SOCKET m_socket = INVALID_SOCKET;
+	INT32			m_iIndex = 0;
+	SOCKET			m_socket = INVALID_SOCKET;
 
-	OverlappedEx m_stRecvOverlappedEx;
-	_char m_recvBuf[MAX_SOCKBUF];
+	OverlappedEx	m_stRecvOverlappedEx;
+	OverlappedEx	m_stSendOverlappedEx;
+
+	std::mutex		m_sendLock;
+
+	UINT64			m_uiSendPos = 0;
+	_bool			m_bIsSending = false;
+
+	_char			m_recvBuf[MAX_SOCKBUF];
+	_char			m_sendBuf[MAX_SOCK_SENDBUF];
+	_char			m_sendingBuf[MAX_SOCK_SENDBUF];
 };

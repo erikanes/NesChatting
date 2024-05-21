@@ -39,23 +39,27 @@ private:
 	void		_CreateClient(const UINT32 iMaxClientCount);
 	_bool		_CreateWorkerThread(); // WatingThreadQueue에서 대기할 스레드들 생성
 	_bool		_CreateAccepterThread(); // accept 요청을 처리하는 스레드 생성
+	_bool		_CreateSenderThread();
 
 	ClientInfo* _GetEmptyClientInfo(); // 사용하지 않는 클라이언트 구조체를 반환
 	ClientInfo* _GetClientInfo(const UINT32 uiSessionIndex);
 	
 	void		_WorkerThread(); // Overlapped I/O 작업 완료를 통보받아 그에 해당하는 처리를 수행
 	void		_AcceptThread(); // 사용자의 접속을 받는 스레드
+	void		_SendThread();
 	void		_CloseSocket(ClientInfo* pClientInfo, _bool bIsForce = false); // 소켓 연결 종료
 
 private:
-	std::vector<ClientInfo>		m_clientInfos;							// 클라이언트 정보 저장 구조체
+	std::vector<ClientInfo*>	m_clientInfos;							// 클라이언트 정보 저장 구조체
 	SOCKET						m_socketListen = INVALID_SOCKET;		// 클라이언트의 접속을 받기위한 소켓
 	_int						m_iClientCount = 0;						// 접속 되어있는 클라이언트 수
 
 	std::vector<std::thread>	m_IOWorkerThreads;						// IO Worker 스레드
 	std::thread					m_acceptThread;							// Accept 스레드
+	std::thread					m_sendThread;
 	HANDLE						m_IOCPHandle = INVALID_HANDLE_VALUE;	// CP 객체 핸들
 
-	_bool						m_bIsWorkerRun = true;					// 작업 스레드 동작 플래그
-	_bool						m_bIsAcceptRun = true;					// 접속 스레드 동작 플래그
+	_bool						m_bIsWorkerRun		= false;				// 작업 스레드 동작 플래그
+	_bool						m_bIsAccepterRun	= false;				// 접속 스레드 동작 플래그
+	_bool						m_bIsSenderRun		= false;				// 송신 스레드 동작 플래그
 };

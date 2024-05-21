@@ -2,7 +2,6 @@
 
 #include "IOCPServer.h"
 
-#include <mutex>
 #include <deque>
 
 class EchoServer : public IOCPServer
