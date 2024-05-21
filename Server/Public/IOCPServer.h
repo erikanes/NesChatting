@@ -1,5 +1,6 @@
 #pragma once
 #pragma comment(lib, "ws2_32")
+#pragma comment(lib, "mswsock")
 #pragma comment(lib, "Common")
 
 #include "Common_Define.h"
@@ -16,7 +17,7 @@ public:
 	virtual ~IOCPServer();
 
 public:
-	_bool	InitSocket(); // 소켓 초기화
+	_bool	InitSocket(const UINT32 uiMaxIOWorkerThreadCount); // 소켓 초기화
 	_bool	BindAndListen(_int iBindPort); // 서버용 함수. 소켓과 연결시키고 접속 요청을 받기 위해 소켓을 등록
 
 	_bool	SendMsg(const UINT32 uiSessionIndex, const UINT32 uiDataSize, _char* pData); //WSASend Overlapped I/O
@@ -39,17 +40,17 @@ private:
 	void		_CreateClient(const UINT32 iMaxClientCount);
 	_bool		_CreateWorkerThread(); // WatingThreadQueue에서 대기할 스레드들 생성
 	_bool		_CreateAccepterThread(); // accept 요청을 처리하는 스레드 생성
-	_bool		_CreateSenderThread();
 
 	ClientInfo* _GetEmptyClientInfo(); // 사용하지 않는 클라이언트 구조체를 반환
 	ClientInfo* _GetClientInfo(const UINT32 uiSessionIndex);
 	
 	void		_WorkerThread(); // Overlapped I/O 작업 완료를 통보받아 그에 해당하는 처리를 수행
 	void		_AcceptThread(); // 사용자의 접속을 받는 스레드
-	void		_SendThread();
 	void		_CloseSocket(ClientInfo* pClientInfo, _bool bIsForce = false); // 소켓 연결 종료
 
 private:
+	UINT32						m_uiMaxIOWorkerThreadCount = 0;
+
 	std::vector<ClientInfo*>	m_clientInfos;							// 클라이언트 정보 저장 구조체
 	SOCKET						m_socketListen = INVALID_SOCKET;		// 클라이언트의 접속을 받기위한 소켓
 	_int						m_iClientCount = 0;						// 접속 되어있는 클라이언트 수

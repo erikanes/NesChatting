@@ -12,7 +12,7 @@ IOCPServer::~IOCPServer()
 	WSACleanup(); // 윈속 사용 종료
 }
 
-_bool IOCPServer::InitSocket()
+_bool IOCPServer::InitSocket(const UINT32 uiMaxIOWorkerThreadCount)
 {
 	WSADATA wsaData;
 
@@ -31,6 +31,8 @@ _bool IOCPServer::InitSocket()
 		std::cout << "[Error] Failed to WSASocket() : " << WSAGetLastError() << '\n';
 		return false;
 	}
+
+	m_uiMaxIOWorkerThreadCount = uiMaxIOWorkerThreadCount;
 
 	std::cout << "Socket initialization successful." << '\n';
 
@@ -66,6 +68,20 @@ _bool IOCPServer::BindAndListen(_int iBindPort)
 		return false;
 	}
 
+	m_IOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, NULL, m_uiMaxIOWorkerThreadCount);
+	if (nullptr == m_IOCPHandle)
+	{
+		std::cout << "[Error] Failed to CreateIoCompletionPort() : " << WSAGetLastError() << '\n';
+		return false;
+	}
+
+	auto hIOCPHandle = CreateIoCompletionPort((HANDLE)m_socketListen, m_IOCPHandle, (UINT32)0, 0);
+	if (nullptr == hIOCPHandle)
+	{
+		std::cout << "[Error] Failed to bind listen socket : " << WSAGetLastError() << '\n';
+		return false;
+	}
+
 	std::cout << "서버 등록 성공." << '\n';
 
 	return true;
@@ -74,13 +90,6 @@ _bool IOCPServer::BindAndListen(_int iBindPort)
 _bool IOCPServer::StartServer(const UINT32 iMaxClientCount)
 {
 	_CreateClient(iMaxClientCount);
-
-	m_IOCPHandle = CreateIoCompletionPort(INVALID_HANDLE_VALUE, NULL, NULL, MAX_WORKERTHREAD);
-	if (NULL == m_IOCPHandle)
-	{
-		std::cout << "[Error] Failed to CreateIoCompletionPort() : " << WSAGetLastError() << '\n';
-		return false;
-	}
 
 	_bool bRet = _CreateWorkerThread();
 	if (false == bRet)
@@ -121,17 +130,21 @@ _bool IOCPServer::SendMsg(PacketData& packetData)
 
 void IOCPServer::DestroyThread()
 {
-	m_bIsAccepterRun = false;
-	closesocket(m_socketListen);
-
-	if (m_acceptThread.joinable())
-		m_acceptThread.join();
+	// 종료 서순도 중요함
+	// accept를 비동기로 변경했다면 나중에 종료해야 함
+	// 핸들을 먼저 반환해야 댕글링이 발생하지 않음
 
 	m_bIsWorkerRun = false;
 	CloseHandle(m_IOCPHandle);
 
 	for (auto& th : m_IOWorkerThreads)
 		if (th.joinable()) th.join();
+
+	m_bIsAccepterRun = false;
+	closesocket(m_socketListen);
+
+	if (m_acceptThread.joinable())
+		m_acceptThread.join();
 }
 
 void IOCPServer::_CreateClient(const UINT32 iMaxClientCount)
@@ -139,7 +152,7 @@ void IOCPServer::_CreateClient(const UINT32 iMaxClientCount)
 	for (UINT32 i = 0; i < iMaxClientCount; ++i)
 	{
 		auto pClient = new ClientInfo();
-		pClient->Init(i);
+		pClient->Init(i, m_IOCPHandle);
 
 		m_clientInfos.push_back(pClient);
 	}
@@ -151,7 +164,7 @@ _bool IOCPServer::_CreateWorkerThread()
 
 	// WaitingThreadQueue에 대기 상태로 넣을 스레드의 개수
 	// 권장 개수 : (프로세서 개수 * 2) + 1
-	for (_int i = 0; i < MAX_WORKERTHREAD; ++i)
+	for (UINT32 i = 0; i < m_uiMaxIOWorkerThreadCount; ++i)
 		m_IOWorkerThreads.emplace_back([this]() { _WorkerThread(); });
 
 	std::cout << "Start worker threads..." << '\n';
@@ -171,10 +184,10 @@ _bool IOCPServer::_CreateAccepterThread()
 
 ClientInfo* IOCPServer::_GetEmptyClientInfo()
 {
-	for (auto& client : m_clientInfos)
+	for (auto& pClient : m_clientInfos)
 	{
-		if (false == client->IsConnected())
-			return client;
+		if (false == pClient->IsConnected())
+			return pClient;
 	}
 
 	return nullptr;
@@ -219,17 +232,34 @@ void IOCPServer::_WorkerThread()
 		if (NULL == lpOverlapped)
 			continue;
 
+		auto pOverlappedEx = (OverlappedEx*)lpOverlapped;
+
 		// 클라이언트가 접속을 끊었을 때
-		if (false == bSuccess || (0 == dwIoSize && true == bSuccess))
+		if (false == bSuccess || (0 == dwIoSize && IOOPERATION::ACCEPT != pOverlappedEx->m_eOperation))
 		{
 			_CloseSocket(pClientInfo);
 			continue;
 		}
 
-		auto pOverlappedEx = (OverlappedEx*)lpOverlapped;
 		const auto eOperation = pOverlappedEx->m_eOperation;
 
-		if (IOOPERATION::RECV == eOperation)
+		if (IOOPERATION::ACCEPT == eOperation)
+		{
+			pClientInfo = _GetClientInfo(pOverlappedEx->m_uiSessionIndex);
+			if (nullptr == pClientInfo)
+				continue;
+
+			if (pClientInfo->AcceptCompletion())
+			{
+				++m_iClientCount;
+				OnConnect(pClientInfo->GetIndex());
+			}
+
+			else
+				_CloseSocket(pClientInfo, true);
+		}
+
+		else if (IOOPERATION::RECV == eOperation)
 		{
 			auto iIndex = pClientInfo->GetIndex();
 			auto szBuf = pClientInfo->GetRecvBuffer();
@@ -254,33 +284,28 @@ void IOCPServer::_WorkerThread()
 
 void IOCPServer::_AcceptThread()
 {
-	SOCKADDR_IN	stClientAddr;
-	_int		iAddrLen = sizeof(SOCKADDR_IN);
-
 	while (m_bIsAccepterRun)
 	{
-		// 접속을 받을 구조체의 인덱스를 얻어옴
-		ClientInfo* pClientInfo = _GetEmptyClientInfo();
-		if (nullptr == pClientInfo)
+		const auto iCurTimeSec = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+
+		for (auto pClient : m_clientInfos)
 		{
-			std::cout << "[Error] Client is full." << '\n';
-			return;
+			if (pClient->IsConnected()) // 이미 연결된 상태라면 넘어간다
+				continue;
+
+			const auto iLatestClosedTimeSec = pClient->GetLatestClosedTimeSec();
+
+			if ((UINT64)iCurTimeSec < iLatestClosedTimeSec) // 연결 이후 시간이 오래 지나지 않은 경우
+				continue;
+
+			auto iDiff = iCurTimeSec - iLatestClosedTimeSec;
+			if (iDiff <= RE_USE_SESSION_WAIT_TIMESEC) // 재연결 대기시간
+				continue;
+
+			pClient->PostAccept(m_socketListen, iCurTimeSec);
 		}
 
-		// 클라이언트 접속 요청이 들어올 때까지 대기
-		auto newSocket = accept(m_socketListen, (SOCKADDR*)&stClientAddr, &iAddrLen);
-		if (INVALID_SOCKET == newSocket)
-			continue;
-
-		if (false == pClientInfo->OnConnect(m_IOCPHandle, newSocket))
-		{
-			pClientInfo->Close(true);
-			return;
-		}
-
-		OnConnect(pClientInfo->GetIndex());
-
-		++m_iClientCount;
+		std::this_thread::sleep_for(std::chrono::milliseconds(2));
 	}
 }
 

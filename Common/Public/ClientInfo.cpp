@@ -7,14 +7,16 @@ ClientInfo::ClientInfo()
 	m_socket = INVALID_SOCKET;
 }
 
-void ClientInfo::Init(const UINT32 iIndex)
+void ClientInfo::Init(const UINT32 iIndex, HANDLE iocpHandle)
 {
 	m_iIndex = iIndex;
+	m_iocpHandle = iocpHandle;
 }
 
 _bool ClientInfo::OnConnect(HANDLE iocpHandle, SOCKET sock)
 {
 	m_socket = sock;
+	m_bIsConnected = true;
 
 	Clear();
 
@@ -36,6 +38,9 @@ void ClientInfo::Close(_bool bIsForce)
 	
 	setsockopt(m_socket, SOL_SOCKET, SO_LINGER, (_char*)&stLinger, sizeof(stLinger));
 	
+	m_bIsConnected = false;
+	m_uiLatestClosedTimeSec = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+
 	closesocket(m_socket);
 	m_socket = INVALID_SOCKET;
 }
@@ -66,7 +71,7 @@ _bool ClientInfo::BindRecv()
 	DWORD dwFlag = 0;
 	DWORD dwRecvNumBytes = 0;
 
-	m_stRecvOverlappedEx.m_wsaBuf.len = MAX_SOCKBUF;
+	m_stRecvOverlappedEx.m_wsaBuf.len = MAX_SOCK_RECVBUF;
 	m_stRecvOverlappedEx.m_wsaBuf.buf = m_recvBuf;
 	m_stRecvOverlappedEx.m_eOperation = IOOPERATION::RECV;
 
@@ -126,6 +131,73 @@ void ClientInfo::SendCompleted(const UINT32 uiDataSize)
 	std::cout << "[Send complete] bytes : " << uiDataSize << '\n';
 }
 
+_bool ClientInfo::PostAccept(SOCKET listenSock, const UINT64 uiCurTimeSec)
+{
+	std::cout << "Post accept. Client index: " << GetIndex() << '\n';
+
+	m_uiLatestClosedTimeSec = UINT32_MAX;
+	m_socket = WSASocket(
+		AF_INET,
+		SOCK_STREAM,
+		IPPROTO_IP,
+		NULL,
+		0,
+		WSA_FLAG_OVERLAPPED);
+
+	if (INVALID_SOCKET == m_socket)
+	{
+		std::cout << "Client socket WSASocket error: " << GetLastError() << '\n';
+		return false;
+	}
+
+	ZeroMemory(&m_stAcceptContext, sizeof(OverlappedEx));
+
+	DWORD bytes = 0;
+	DWORD flags = 0;
+	m_stAcceptContext.m_wsaBuf.len = 0;
+	m_stAcceptContext.m_wsaBuf.buf = nullptr;
+	m_stAcceptContext.m_eOperation = IOOPERATION::ACCEPT;
+	m_stAcceptContext.m_uiSessionIndex = m_iIndex;
+
+	auto bRet = AcceptEx(
+		listenSock,
+		m_socket,
+		m_acceptBuf,
+		0,
+		sizeof(SOCKADDR_IN) + 16,
+		sizeof(SOCKADDR_IN) + 16,
+		&bytes,
+		(LPWSAOVERLAPPED)&m_stAcceptContext);
+
+	if (FALSE == bRet)
+	{
+		if (WSA_IO_PENDING != WSAGetLastError())
+		{
+			std::cout << "AcceptEx Error: " << GetLastError() << '\n';
+			return false;
+		}
+	}
+
+	return true;
+}
+
+_bool ClientInfo::AcceptCompletion()
+{
+	std::cout << "Accept Completion: Session index(" << m_iIndex << ")" << '\n';
+
+	if (false == OnConnect(m_iocpHandle, m_socket))
+		return false;
+
+	SOCKADDR_IN stClientAddr;
+	_int iAddrlen = sizeof(SOCKADDR_IN);
+	_char szClientIP[32] = { 0, };
+	inet_ntop(AF_INET, &(stClientAddr.sin_addr), szClientIP, 32 - 1);
+
+	std::cout << "Client connection. IP(" << szClientIP << ")" << "(" << (_int)m_socket << ")" << '\n';
+
+	return true;
+}
+
 _bool ClientInfo::_SendIO()
 {
 	auto pSendOverlappedEx = m_sendDataQueue.front();
@@ -144,6 +216,25 @@ _bool ClientInfo::_SendIO()
 	if (SOCKET_ERROR == iRet && (WSAGetLastError() != ERROR_IO_PENDING))
 	{
 		std::cout << "[Error] Failed to WSASend() : " << WSAGetLastError() << '\n';
+		return false;
+	}
+
+	return true;
+}
+
+_bool ClientInfo::_SetSocketOption()
+{
+	_int opt = 1;
+	if (SOCKET_ERROR == setsockopt(m_socket, IPPROTO_TCP, TCP_NODELAY, (const char*)&opt, sizeof(_int)))
+	{
+		std::cout << "[Debug] TCP_NODELAY error: " << GetLastError() << '\n';
+		return false;
+	}
+
+	opt = 0;
+	if (SOCKET_ERROR == setsockopt(m_socket, SOL_SOCKET, SO_RCVBUF, (const char*)&opt, sizeof(_int)))
+	{
+		std::cout << "[Debug] SO_RECBUF change error: " << GetLastError() << '\n';
 		return false;
 	}
 
