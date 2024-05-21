@@ -90,10 +90,6 @@ _bool IOCPServer::StartServer(const UINT32 iMaxClientCount)
 	if (false == bRet)
 		return false;
 
-	bRet = _CreateSenderThread();
-	if (false == bRet)
-		return false;
-
 	std::cout << "Server start" << '\n';
 
 	return true;
@@ -125,10 +121,6 @@ _bool IOCPServer::SendMsg(PacketData& packetData)
 
 void IOCPServer::DestroyThread()
 {
-	m_bIsSenderRun = false;
-	if (m_sendThread.joinable())
-		m_sendThread.join();
-
 	m_bIsAccepterRun = false;
 	closesocket(m_socketListen);
 
@@ -173,16 +165,6 @@ _bool IOCPServer::_CreateAccepterThread()
 	m_acceptThread = std::thread([this]() { _AcceptThread(); });
 
 	std::cout << "Start accepter thread..." << '\n';
-
-	return true;
-}
-
-_bool IOCPServer::_CreateSenderThread()
-{
-	m_bIsSenderRun = true;
-	m_sendThread = std::thread([this]() { _SendThread(); });
-
-	std::cout << "Start sender thread..." << '\n';
 
 	return true;
 }
@@ -257,7 +239,7 @@ void IOCPServer::_WorkerThread()
 		}
 
 		else if (IOOPERATION::SEND == eOperation)
-			pClientInfo->SendCompleted(dwIoSize);
+			pClientInfo->SendCompleted(dwIoSize); // 현재는 에코서버이기 때문에 별다른 처리 안하는 중
 
 		else // 예외상황
 			std::cout << "[Exception] socket(" << pClientInfo->GetIndex() << ")" << '\n';
@@ -299,22 +281,6 @@ void IOCPServer::_AcceptThread()
 		OnConnect(pClientInfo->GetIndex());
 
 		++m_iClientCount;
-	}
-}
-
-void IOCPServer::_SendThread()
-{
-	while (m_bIsSenderRun)
-	{
-		for (auto pClient : m_clientInfos)
-		{
-			if (false == pClient->IsConnected())
-				continue;
-
-			pClient->SendIO();
-		}
-
-		std::this_thread::sleep_for(std::chrono::milliseconds(8));
 	}
 }
 

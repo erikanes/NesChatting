@@ -56,10 +56,8 @@ private:
 
 	std::vector<std::thread>	m_IOWorkerThreads;						// IO Worker 스레드
 	std::thread					m_acceptThread;							// Accept 스레드
-	std::thread					m_sendThread;
 	HANDLE						m_IOCPHandle = INVALID_HANDLE_VALUE;	// CP 객체 핸들
 
 	_bool						m_bIsWorkerRun		= false;				// 작업 스레드 동작 플래그
 	_bool						m_bIsAccepterRun	= false;				// 접속 스레드 동작 플래그
-	_bool						m_bIsSenderRun		= false;				// 송신 스레드 동작 플래그
 };
