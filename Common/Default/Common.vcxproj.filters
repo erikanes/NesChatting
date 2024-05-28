@@ -10,8 +10,8 @@
     <Filter Include="ClientInfo">
       <UniqueIdentifier>{289fee58-42dd-4a4e-9d90-ebbc31ea521f}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Packet">
-      <UniqueIdentifier>{d1861d31-a4a6-4e2b-a800-a4d131b2aa9a}</UniqueIdentifier>
+    <Filter Include="User">
+      <UniqueIdentifier>{ffef758a-c550-425d-867e-d5497142d27a}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -27,12 +27,21 @@
     <ClInclude Include="..\Public\ClientInfo.h">
       <Filter>ClientInfo</Filter>
     </ClInclude>
+    <ClInclude Include="..\Public\ErrorCode.h">
+      <Filter>Default</Filter>
+    </ClInclude>
     <ClInclude Include="..\Public\Packet.h">
-      <Filter>Packet</Filter>
+      <Filter>Default</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\User.h">
+      <Filter>User</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\Public\ClientInfo.cpp">
+    <ClCompile Include="..\Private\User.cpp">
+      <Filter>User</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\ClientInfo.cpp">
       <Filter>ClientInfo</Filter>
     </ClCompile>
   </ItemGroup>

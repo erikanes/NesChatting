@@ -10,6 +10,18 @@
     <Filter Include="Echo">
       <UniqueIdentifier>{7ad7d060-085b-41ae-afa0-da888b3572f3}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Chat">
+      <UniqueIdentifier>{9db0cf62-4d8d-485a-89b6-eaa38e3e5a2d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Manager">
+      <UniqueIdentifier>{9a9c5603-6f7c-4127-9b94-d8fe8c8343b0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Manager\Packet">
+      <UniqueIdentifier>{936feb29-8386-47cf-a685-45fd4c2b8e22}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Manager\User">
+      <UniqueIdentifier>{c52be7a3-de8e-445e-9804-50e2a3cc5c93}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\Private\IOCPServer.cpp">
@@ -21,6 +33,15 @@
     <ClCompile Include="..\Private\EchoServer.cpp">
       <Filter>Echo</Filter>
     </ClCompile>
+    <ClCompile Include="..\Private\ChatServer.cpp">
+      <Filter>Chat</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\PacketManager.cpp">
+      <Filter>Manager\Packet</Filter>
+    </ClCompile>
+    <ClCompile Include="..\Private\UserManager.cpp">
+      <Filter>Manager\User</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Public\IOCPServer.h">
@@ -28,6 +49,15 @@
     </ClInclude>
     <ClInclude Include="..\Public\EchoServer.h">
       <Filter>Echo</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\ChatServer.h">
+      <Filter>Chat</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\PacketManager.h">
+      <Filter>Manager\Packet</Filter>
+    </ClInclude>
+    <ClInclude Include="..\Public\UserManager.h">
+      <Filter>Manager\User</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

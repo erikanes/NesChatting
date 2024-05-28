@@ -20,12 +20,12 @@ public:
 
 private:
 	void _ProcessPacket();
-	PacketData _DequePacketData();
+	RawPacketData _DequePacketData();
 
 private:
 	_bool m_bIsProcessRun = false;
 	std::thread m_processThread;
 
 	std::mutex m_mutex;
-	std::deque<PacketData> m_packetDataQueue;
+	std::deque<RawPacketData> m_packetDataQueue;
 };

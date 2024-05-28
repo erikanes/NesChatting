@@ -31,7 +31,7 @@ void EchoServer::OnClose(const UINT32 uiClientIndex)
 
 void EchoServer::OnReceive(const UINT32 uiClientIndex, const UINT32 uiSize, _char* pData)
 {
-	PacketData packet;
+	RawPacketData packet;
 	packet.Set(uiClientIndex, uiSize, pData);
 
 	std::lock_guard<std::mutex> guard(m_mutex);
@@ -53,14 +53,14 @@ void EchoServer::_ProcessPacket()
 	}
 }
 
-PacketData EchoServer::_DequePacketData()
+RawPacketData EchoServer::_DequePacketData()
 {
 	std::lock_guard<std::mutex> guard(m_mutex);
 
 	if (m_packetDataQueue.empty())
-		return PacketData();
+		return RawPacketData();
 
-	PacketData packetData;
+	RawPacketData packetData;
 	packetData.Set(m_packetDataQueue.front());
 
 	m_packetDataQueue.front().Release();

@@ -82,7 +82,7 @@ _bool IOCPServer::BindAndListen(_int iBindPort)
 		return false;
 	}
 
-	std::cout << "서버 등록 성공." << '\n';
+	std::cout << "Server registration successful." << '\n';
 
 	return true;
 }
@@ -123,9 +123,9 @@ _bool IOCPServer::SendMsg(const UINT32 uiSessionIndex, const UINT32 uiDataSize, 
 	return pClient->SendMsg(uiDataSize, pData);
 }
 
-_bool IOCPServer::SendMsg(PacketData& packetData)
+_bool IOCPServer::SendMsg(RawPacketData& packetData)
 {
-	return SendMsg(packetData.m_uiSessionIndex, packetData.m_uiDataSize, packetData.m_pData);
+	return SendMsg(packetData.m_uiClientIndex, packetData.m_uiDataSize, packetData.m_pData);
 }
 
 void IOCPServer::DestroyThread()

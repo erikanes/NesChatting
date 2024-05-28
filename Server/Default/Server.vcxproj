@@ -19,12 +19,18 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\Public\ChatServer.h" />
     <ClInclude Include="..\Public\EchoServer.h" />
     <ClInclude Include="..\Public\IOCPServer.h" />
+    <ClInclude Include="..\Public\PacketManager.h" />
+    <ClInclude Include="..\Public\UserManager.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\Private\ChatServer.cpp" />
     <ClCompile Include="..\Private\EchoServer.cpp" />
     <ClCompile Include="..\Private\IOCPServer.cpp" />
+    <ClCompile Include="..\Private\PacketManager.cpp" />
+    <ClCompile Include="..\Private\UserManager.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

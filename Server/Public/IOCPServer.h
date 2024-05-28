@@ -21,7 +21,7 @@ public:
 	_bool	BindAndListen(_int iBindPort); // 서버용 함수. 소켓과 연결시키고 접속 요청을 받기 위해 소켓을 등록
 
 	_bool	SendMsg(const UINT32 uiSessionIndex, const UINT32 uiDataSize, _char* pData); //WSASend Overlapped I/O
-	_bool	SendMsg(PacketData& packetData);
+	_bool	SendMsg(RawPacketData& packetData);
 
 protected:
 	_bool	StartServer(const UINT32 uiMaxClientCount); // 접속 요청을 수락하고 메시지를 받아서 처리

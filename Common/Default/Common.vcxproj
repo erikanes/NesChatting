@@ -72,9 +72,11 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <OutDir>../Bin/</OutDir>
+    <IncludePath>../Public/;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>../Bin/</OutDir>
+    <IncludePath>../Public/;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -147,10 +149,13 @@ call "$(ProjectDir)..\..\Bat\update_common_lib.bat"</Command>
     <ClInclude Include="..\Public\Common_Debug.h" />
     <ClInclude Include="..\Public\Common_Define.h" />
     <ClInclude Include="..\Public\Common_Typedef.h" />
+    <ClInclude Include="..\Public\ErrorCode.h" />
     <ClInclude Include="..\Public\Packet.h" />
+    <ClInclude Include="..\Public\User.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\Public\ClientInfo.cpp" />
+    <ClCompile Include="..\Private\ClientInfo.cpp" />
+    <ClCompile Include="..\Private\User.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

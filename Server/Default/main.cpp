@@ -1,4 +1,4 @@
-#include "EchoServer.h"
+#include "ChatServer.h"
 #include <iostream>
 #include <string>
 
@@ -12,7 +12,7 @@ int main()
 {
 	_CRTSETDBGFLAG_
 
-	EchoServer server;
+	ChatServer server;
 
 	if (false == server.InitSocket(MAX_IO_WORKER_THREAD))
 		return 0;
